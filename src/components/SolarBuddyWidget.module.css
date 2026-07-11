@@ -1,0 +1,177 @@
+/* Container for the entire widget */
+.widgetContainer {
+  width: 400px; /* Adjust as needed */
+  height: 650px; /* Adjust as needed */
+  background-color: #f7f7f7;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Keeps things neat */
+}
+
+/* Header with gradient and title */
+.header {
+  padding: 15px 20px;
+  background-image: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.headerIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.headerActions {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Scrollable message feed */
+.messageFeed {
+  flex-grow: 1; /* Fills the vertical space */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto; /* Enables scrolling */
+  scrollbar-width: thin; /* Clean scrollbar for Firefox */
+}
+
+/* Common bubble styles */
+.messageBubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 80%;
+}
+
+.aiAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-top: 4px; /* Align with first line of text */
+}
+
+.messageText {
+  padding: 12px 18px;
+  border-radius: 18px;
+  line-height: 1.5;
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* AI specific: Left alignment and gray */
+.ai {
+  align-self: flex-start;
+}
+
+.ai .messageText {
+  background-color: #fff;
+  color: #333;
+  border-top-left-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+/* User specific: Right alignment and green */
+.user {
+  align-self: flex-end;
+  flex-direction: row-reverse; /* Put text on the right */
+}
+
+.user .messageText {
+  background-color: #dcf8c6; /* Classic WhatsApp green */
+  color: #333;
+  border-top-right-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+/* Quick reply button section */
+.quickReplyContainer {
+  padding: 10px 20px;
+  display: flex;
+  flex-wrap: wrap; /* Allows buttons to flow onto next line */
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.quickReplyButton {
+  background: none;
+  border: 1px solid #43e97b;
+  color: #27ae60;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quickReplyButton:hover {
+  background-color: rgba(67, 233, 123, 0.1);
+  border-color: #27ae60;
+}
+
+/* Input area at the bottom */
+.inputArea {
+  padding: 15px 20px;
+  background-color: #fff;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+}
+
+.textInput {
+  flex-grow: 1;
+  padding: 10px 15px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.textInput:focus {
+  border-color: #43e97b;
+}
+
+.sendButton {
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.sendButton:hover {
+  background-color: #219150;
+}
+
+.sendButton:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}

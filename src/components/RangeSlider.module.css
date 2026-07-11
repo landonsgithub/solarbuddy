@@ -1,0 +1,89 @@
+/* Container block for the range interface */
+.sliderWrapper {
+  background-color: #ffffff;
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.sliderLabel {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.sliderLabel strong {
+  color: #27ae60;
+  font-size: 1.1rem;
+}
+
+.sliderContainer {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rangeLimit {
+  font-size: 0.85rem;
+  color: #777;
+  font-weight: bold;
+}
+
+/* Base custom look for track slider */
+.cleanSlider {
+  flex-grow: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+  outline: none;
+}
+
+/* Styled Slider Handle / Thumb */
+.cleanSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #27ae60;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  transition: transform 0.1s;
+}
+
+.cleanSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.cleanSlider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #27ae60;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* Confirm Action Button */
+.sliderSubmitBtn {
+  background-color: #27ae60;
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: background-color 0.2s;
+}
+
+.sliderSubmitBtn:hover {
+  background-color: #219150;
+}
