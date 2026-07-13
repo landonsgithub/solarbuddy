@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { sbStore } from '../services/sbStore';
 
 const STEPS = {
   start: {
@@ -50,11 +51,17 @@ const STEPS = {
     id: 'energy_provider',
     text: "What is the name of your current energy provider?",
     type: 'text', 
-    next: () => 'qualified_complete'
+    next: () => 'email_address',
+  },
+  email_address:{
+    id: 'email_address',
+    text: "Can you please provide your email address?",
+    type: 'text', 
+    next: () => 'qualified_complete' 
   },
 };
 
-// And make sure your starting state uses the lowercase 'start'
+
 // const [currentStepId, setCurrentStepId] = useState('start');
 
 export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
@@ -69,18 +76,19 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
     serviceType: '',
     houseSpecs: '',
     seriousness: 5,
-    energyProvider: '' 
+    energyProvider: '',
+    emailAddress :'' 
   });
 
   const currentStep = STEPS[currentStepId];
 
   const handleAnswer = (answerText) => {
     //Front end data log
-    storageService.saveAnswer(currentStepId, answerText);
+   sbStore.updateItem(currentStepId, answerText);
 
     let updatedFormData = { ...formData };
     
-    // Added data capture for your new fields
+    // data capture
     if (currentStepId === 'property_type') updatedFormData.propertyType = answerText;
     if (currentStepId === 'monthly_bill') updatedFormData.monthlyBill = answerText;
     if (currentStepId === 'address') {
@@ -94,6 +102,7 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
       updatedFormData.seriousness = parseInt(answerText, 10);
     }
     if (currentStepId === 'energy_provider') updatedFormData.energyProvider = answerText;
+    if (currentStepId === 'email_address') updatedFormData.emailAddress = answerText;
 
     setFormData(updatedFormData);
 
@@ -103,7 +112,7 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
     if (nextStepId === 'end_not_interested') {
       nextAiText = "No worries at all! Let me know if you change your mind. Have a great day!";
       onTreeComplete(updatedFormData);
-    } else if (nextStepId === 'qualified_complete') { // Fixed this to match your tree!
+    } else if (nextStepId === 'qualified_complete') { 
       nextAiText = "Thank you! I've logged all your project details safely. Now, feel free to ask me any specific questions you have about solar panels, costs, or timelines!";
       onTreeComplete(updatedFormData);
     } else {
