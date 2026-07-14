@@ -31,3 +31,27 @@ export async function fetchLeadStats() {
   const response = await fetch(`${API_BASE_URL}/leads/stats`);
   return parseJson(response);
 }
+
+export async function fetchCalendarAvailability(range) {
+  const response = await fetch(`${API_BASE_URL}/calendar/availability`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ range })
+  });
+
+  return parseJson(response);
+}
+
+export async function bookCalendarAppointment(appointmentData) {
+  const response = await fetch(`${API_BASE_URL}/calendar/book`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(appointmentData)
+  });
+
+  return parseJson(response);
+}

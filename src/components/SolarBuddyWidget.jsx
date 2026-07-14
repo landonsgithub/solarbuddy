@@ -3,8 +3,21 @@ import SolarDecisionTree from './SolarDecisionTree.jsx';
 import RangeSlider from './RangeSlider.jsx';
 import styles from './SolarBuddyWidget.module.css';
 import sunIcon from '../assets/sun-icon.svg';
-import { createLead } from '../services/api.js';
+import {
+  bookCalendarAppointment,
+  createLead,
+  fetchCalendarAvailability
+} from '../services/api.js';
 import { sbStore } from '../services/sbStore.js';
+
+const DAY_RANGE_OPTIONS = ['Tomorrow', 'This Week', 'Next Week'];
+const TIME_OF_DAY_OPTIONS = ['Morning', 'Afternoon', 'Choose another day'];
+const SCHEDULE_OPTIONS = ['Yes, let\'s schedule', 'No, not now'];
+const EMAIL_CONFIRM_OPTIONS = ['Yes', 'Use a different email'];
+const SEE_MORE_OPTION = 'See more times...';
+const CHANGE_DAY_OPTION = 'Choose another day';
+const SLOT_BATCH_SIZE = 3;
+const DENVER_TIMEZONE = 'America/Denver';
 
 function buildLeadPayload(finalData) {
   return {
@@ -26,12 +39,81 @@ function buildLeadPayload(finalData) {
   };
 }
 
-export default function SolarBuddyWidget({ industry, companyName }) {
+function getHourInDenver(slot) {
+  const formattedHour = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    hour12: false,
+    timeZone: DENVER_TIMEZONE
+  }).format(new Date(slot));
+
+  return Number.parseInt(formattedHour, 10);
+}
+
+function filterSlotsByTimeOfDay(slots, timeOfDay) {
+  return slots.filter((slot) => {
+    const hour = getHourInDenver(slot);
+    return timeOfDay === 'Morning' ? hour < 12 : hour >= 12;
+  });
+}
+
+function formatSlotLabel(slot) {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: DENVER_TIMEZONE
+  }).format(new Date(slot));
+}
+
+function buildVisibleSlotOptions(filteredSlots, currentIndex) {
+  const currentBatch = filteredSlots.slice(currentIndex, currentIndex + SLOT_BATCH_SIZE);
+  const labels = currentBatch.map((slot) => formatSlotLabel(slot));
+  const hasMore = currentIndex + SLOT_BATCH_SIZE < filteredSlots.length;
+
+  return {
+    labels: hasMore ? [...labels, SEE_MORE_OPTION, CHANGE_DAY_OPTION] : [...labels, CHANGE_DAY_OPTION],
+    slotMap: Object.fromEntries(currentBatch.map((slot) => [formatSlotLabel(slot), slot]))
+  };
+}
+
+function buildBookingPayload(bookingState, leadPayload) {
+  return {
+    leadId: bookingState.leadId,
+    fullName: leadPayload.fullName,
+    email: bookingState.confirmedEmail,
+    phone: leadPayload.phone,
+    zipCode: leadPayload.zipCode,
+    addressRaw: leadPayload.addressRaw,
+    selectedSlot: bookingState.selectedSlot,
+    durationMinutes: 15
+  };
+}
+
+const INITIAL_BOOKING_STATE = {
+  active: false,
+  step: 'idle',
+  leadId: null,
+  fullName: '',
+  originalEmail: '',
+  confirmedEmail: '',
+  leadPayload: null,
+  availableSlots: [],
+  filteredSlots: [],
+  currentIndex: 0,
+  currentRange: '',
+  currentTimeOfDay: '',
+  selectedSlot: '',
+  slotMap: {}
+};
+
+export default function SolarBuddyWidget({ companyName }) {
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [treeActive, setTreeActive] = useState(true);
   const [submissionState, setSubmissionState] = useState('idle');
+  const [bookingState, setBookingState] = useState(INITIAL_BOOKING_STATE);
   const messagesEndRef = useRef(null);
 
   const tree = SolarDecisionTree({
@@ -54,22 +136,42 @@ export default function SolarBuddyWidget({ industry, companyName }) {
       setSubmissionState('submitting');
 
       try {
-        const response = await createLead(buildLeadPayload(finalData));
+        const leadPayload = buildLeadPayload(finalData);
+        const response = await createLead(leadPayload);
         const storedLead = response.data;
 
         setSubmissionState('success');
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'ai',
-            text: storedLead.isHotLead
-              ? 'Thank you for reaching out to Solar Buddy. One of our specialists will contact you soon.'
-              : 'Thank you for reaching out to Solar Buddy. We have received your information and will be in touch soon.'
-          }
-        ]);
-
         window.dispatchEvent(new CustomEvent('solarbuddy:lead-created'));
-        sbStore.resetData();
+
+        if (storedLead.isHotLead) {
+          setBookingState({
+            ...INITIAL_BOOKING_STATE,
+            active: true,
+            step: 'offer_schedule',
+            leadId: storedLead.id,
+            fullName: leadPayload.fullName,
+            originalEmail: leadPayload.email,
+            confirmedEmail: leadPayload.email,
+            leadPayload
+          });
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'ai',
+              text: 'You qualify for a 15-minute consultation. Would you like to see our available times now?'
+            }
+          ]);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'ai',
+              text: 'Thank you for reaching out to Solar Buddy. We have received your information and will be in touch soon.'
+            }
+          ]);
+          sbStore.resetData();
+        }
       } catch (error) {
         setSubmissionState('error');
         setTreeActive(true);
@@ -96,10 +198,243 @@ export default function SolarBuddyWidget({ industry, companyName }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = (explicitText) => {
+  function appendMessagePair(userText, aiText) {
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: userText },
+      { role: 'ai', text: aiText }
+    ]);
+  }
+
+  async function handleBookingAction(actionText) {
+    switch (bookingState.step) {
+      case 'offer_schedule': {
+        if (actionText === 'No, not now') {
+          appendMessagePair(actionText, 'Thank you for reaching out to Solar Buddy. Our team will contact you soon.');
+          sbStore.resetData();
+          setBookingState(INITIAL_BOOKING_STATE);
+          return;
+        }
+
+        appendMessagePair(actionText, 'Great. Which day would work best for your consultation?');
+        setBookingState((prev) => ({
+          ...prev,
+          step: 'day_picker'
+        }));
+        return;
+      }
+
+      case 'day_picker': {
+        setLoading(true);
+        setSubmissionState('scheduling');
+
+        try {
+          const availabilityResponse = await fetchCalendarAvailability(actionText);
+          const slots = availabilityResponse.data?.slots ?? availabilityResponse.slots ?? [];
+
+          if (slots.length === 0) {
+            appendMessagePair(actionText, 'I could not find open times for that option. Please choose another day.');
+            setBookingState((prev) => ({
+              ...prev,
+              availableSlots: [],
+              filteredSlots: [],
+              currentRange: '',
+              currentIndex: 0,
+              slotMap: {},
+              step: 'day_picker'
+            }));
+            return;
+          }
+
+          appendMessagePair(actionText, `Perfect. For ${actionText.toLowerCase()}, do you generally prefer the Morning or Afternoon?`);
+          setBookingState((prev) => ({
+            ...prev,
+            availableSlots: slots,
+            filteredSlots: [],
+            currentRange: actionText,
+            currentIndex: 0,
+            currentTimeOfDay: '',
+            slotMap: {},
+            step: 'time_of_day'
+          }));
+        } catch (error) {
+          appendMessagePair(actionText, `I could not check availability yet: ${error.message}`);
+        } finally {
+          setLoading(false);
+          setSubmissionState('success');
+        }
+        return;
+      }
+
+      case 'time_of_day': {
+        if (actionText === CHANGE_DAY_OPTION) {
+          appendMessagePair(actionText, 'No problem. Which day would work best instead?');
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'day_picker',
+            currentRange: '',
+            currentTimeOfDay: '',
+            filteredSlots: [],
+            currentIndex: 0,
+            slotMap: {}
+          }));
+          return;
+        }
+
+        const filteredSlots = filterSlotsByTimeOfDay(bookingState.availableSlots, actionText);
+
+        if (filteredSlots.length === 0) {
+          appendMessagePair(actionText, `I do not have open ${actionText.toLowerCase()} times there. Please choose another day.`);
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'day_picker',
+            currentRange: '',
+            currentTimeOfDay: '',
+            filteredSlots: [],
+            currentIndex: 0,
+            slotMap: {}
+          }));
+          return;
+        }
+
+        const slotBatch = buildVisibleSlotOptions(filteredSlots, 0);
+        appendMessagePair(actionText, `Here are the first available slots for ${bookingState.currentRange.toLowerCase()} ${actionText.toLowerCase()}.`);
+        setBookingState((prev) => ({
+          ...prev,
+          currentTimeOfDay: actionText,
+          filteredSlots,
+          currentIndex: 0,
+          slotMap: slotBatch.slotMap,
+          step: 'time_picker'
+        }));
+        return;
+      }
+
+      case 'time_picker': {
+        if (actionText === CHANGE_DAY_OPTION) {
+          appendMessagePair(actionText, 'Sure. Which day would you like to check instead?');
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'day_picker',
+            currentRange: '',
+            currentTimeOfDay: '',
+            filteredSlots: [],
+            currentIndex: 0,
+            slotMap: {}
+          }));
+          return;
+        }
+
+        if (actionText === SEE_MORE_OPTION) {
+          const nextIndex = bookingState.currentIndex + SLOT_BATCH_SIZE;
+          const slotBatch = buildVisibleSlotOptions(bookingState.filteredSlots, nextIndex);
+          appendMessagePair(actionText, 'Here are more available times.');
+          setBookingState((prev) => ({
+            ...prev,
+            currentIndex: nextIndex,
+            slotMap: slotBatch.slotMap
+          }));
+          return;
+        }
+
+        const selectedSlot = bookingState.slotMap[actionText];
+        if (!selectedSlot) {
+          return;
+        }
+
+        appendMessagePair(
+          actionText,
+          `Perfect, we'll send the invite to ${bookingState.confirmedEmail}. Is that correct?`
+        );
+        setBookingState((prev) => ({
+          ...prev,
+          selectedSlot,
+          step: 'confirm_email'
+        }));
+        return;
+      }
+
+      case 'confirm_email': {
+        if (actionText === 'Use a different email') {
+          appendMessagePair(actionText, 'Please type the email address where you want to receive the calendar invite.');
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'change_email'
+          }));
+          return;
+        }
+
+        setLoading(true);
+        setSubmissionState('booking');
+
+        try {
+          await bookCalendarAppointment(buildBookingPayload(bookingState, bookingState.leadPayload));
+          appendMessagePair(actionText, 'Your consultation is booked. We will send the calendar invite to your email shortly.');
+          sbStore.resetData();
+          setBookingState(INITIAL_BOOKING_STATE);
+        } catch (error) {
+          appendMessagePair(actionText, `I could not book the appointment yet: ${error.message}`);
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'confirm_email'
+          }));
+        } finally {
+          setLoading(false);
+          setSubmissionState('success');
+        }
+        return;
+      }
+
+      case 'change_email': {
+        const normalizedEmail = actionText.trim();
+        if (!normalizedEmail.includes('@')) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', text: normalizedEmail },
+            { role: 'ai', text: 'That does not look like a valid email. Please try again.' }
+          ]);
+          return;
+        }
+
+        setLoading(true);
+        setSubmissionState('booking');
+
+        try {
+          const nextBookingState = {
+            ...bookingState,
+            confirmedEmail: normalizedEmail
+          };
+
+          await bookCalendarAppointment(buildBookingPayload(nextBookingState, bookingState.leadPayload));
+          appendMessagePair(normalizedEmail, 'Your consultation is booked. We will send the calendar invite to your email shortly.');
+          sbStore.resetData();
+          setBookingState(INITIAL_BOOKING_STATE);
+          setPrompt('');
+        } catch (error) {
+          appendMessagePair(normalizedEmail, `I could not book the appointment yet: ${error.message}`);
+          setBookingState((prev) => ({
+            ...prev,
+            confirmedEmail: normalizedEmail,
+            step: 'change_email'
+          }));
+        } finally {
+          setLoading(false);
+          setSubmissionState('success');
+        }
+      }
+    }
+  }
+
+  async function handleSend(explicitText) {
     const text = explicitText || prompt;
 
     if (!text.trim() || loading) {
+      return;
+    }
+
+    if (bookingState.active) {
+      await handleBookingAction(text);
+      setPrompt('');
       return;
     }
 
@@ -107,11 +442,37 @@ export default function SolarBuddyWidget({ industry, companyName }) {
       tree.handleAnswer(text);
       setPrompt('');
     }
-  };
+  }
 
-  const currentOptions = tree.currentStep?.options || [];
-  const isTextInputMode = tree.currentStep?.type === 'text';
-  const isRangeMode = treeActive && tree.currentStep?.type === 'range';
+  function getBookingOptions() {
+    switch (bookingState.step) {
+      case 'offer_schedule':
+        return SCHEDULE_OPTIONS;
+      case 'day_picker':
+        return DAY_RANGE_OPTIONS;
+      case 'time_of_day':
+        return TIME_OF_DAY_OPTIONS;
+      case 'time_picker':
+        return buildVisibleSlotOptions(bookingState.filteredSlots, bookingState.currentIndex).labels;
+      case 'confirm_email':
+        return EMAIL_CONFIRM_OPTIONS;
+      default:
+        return [];
+    }
+  }
+
+  const currentOptions = bookingState.active ? getBookingOptions() : tree.currentStep?.options || [];
+  const isTextInputMode = bookingState.active
+    ? bookingState.step === 'change_email'
+    : tree.currentStep?.type === 'text';
+  const isRangeMode = !bookingState.active && treeActive && tree.currentStep?.type === 'range';
+  const statusText = submissionState === 'submitting'
+    ? 'Sending lead to backend...'
+    : submissionState === 'scheduling'
+      ? 'Checking availability...'
+      : submissionState === 'booking'
+        ? 'Booking appointment...'
+        : '';
 
   return (
     <section className={styles.widgetContainer}>
@@ -144,7 +505,7 @@ export default function SolarBuddyWidget({ industry, companyName }) {
         />
       )}
 
-      {!loading && currentOptions.length > 0 && !isRangeMode && treeActive && (
+      {!loading && currentOptions.length > 0 && !isRangeMode && (treeActive || bookingState.active) && (
         <div className={styles.quickReplyContainer}>
           {currentOptions.map((option) => (
             <button key={option} className={styles.quickReplyButton} onClick={() => handleSend(option)}>
@@ -155,8 +516,8 @@ export default function SolarBuddyWidget({ industry, companyName }) {
       )}
 
       <div className={styles.statusBar}>
-        <span>{submissionState === 'submitting' ? 'Sending lead to backend...' : ''}</span>
-        {submissionState === 'success' && <strong>Stored</strong>}
+        <span>{statusText}</span>
+        {submissionState === 'success' && !bookingState.active && <strong>Stored</strong>}
         {submissionState === 'error' && <strong>Retry Needed</strong>}
       </div>
 
@@ -165,14 +526,14 @@ export default function SolarBuddyWidget({ industry, companyName }) {
           type="text"
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder={treeActive && !isTextInputMode ? 'Select an option above...' : 'Type your answer here...'}
-          disabled={!treeActive || (treeActive && !isTextInputMode) || loading}
+          placeholder={isTextInputMode ? 'Type your answer here...' : 'Select an option above...'}
+          disabled={(!treeActive && !bookingState.active) || (!isTextInputMode) || loading}
           onKeyDown={(event) => event.key === 'Enter' && handleSend()}
           className={styles.textInput}
         />
         <button
           onClick={() => handleSend()}
-          disabled={loading || !treeActive || (treeActive && !isTextInputMode)}
+          disabled={loading || !isTextInputMode || (!treeActive && !bookingState.active)}
           className={styles.sendButton}
         >
           {loading ? '...' : 'Send'}

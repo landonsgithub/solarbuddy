@@ -145,7 +145,7 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
       nextAiText = 'Understood. We cannot store your information without consent, so the demo stops here.';
       onTreeComplete({ ...updatedFormData, status: 'no_consent' });
     } else if (nextStepId === 'qualified_complete') {
-      nextAiText = 'Thank you for contacting Solar Buddy. We have received your information and our team will reach out to you soon.';
+      nextAiText = 'Thank you. Give me just a moment while I finish preparing the next step for you.';
       onTreeComplete({ ...updatedFormData, status: 'completed' });
     } else {
       nextAiText = STEPS[nextStepId].text;
