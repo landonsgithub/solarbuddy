@@ -10,9 +10,10 @@ function buildLeadPayload(finalData) {
   return {
     fullName: finalData.fullName,
     email: finalData.email,
+    phone: finalData.phone || undefined,
     propertyType: finalData.propertyType || undefined,
     monthlyBill: finalData.monthlyBill || undefined,
-    addressRaw: finalData.addressRaw,
+    addressRaw: finalData.addressRaw || 'N/A',
     city: undefined,
     zipCode: finalData.zipCode,
     serviceType: finalData.serviceType || undefined,
@@ -62,8 +63,8 @@ export default function SolarBuddyWidget({ industry, companyName }) {
           {
             role: 'ai',
             text: storedLead.isHotLead
-              ? 'Hot lead captured. The backend stored it and triggered the email path.'
-              : 'Lead captured successfully. It is now visible in the dashboard.'
+              ? 'Thank you for reaching out to Solar Buddy. One of our specialists will contact you soon.'
+              : 'Thank you for reaching out to Solar Buddy. We have received your information and will be in touch soon.'
           }
         ]);
 
@@ -119,7 +120,6 @@ export default function SolarBuddyWidget({ industry, companyName }) {
           <img src={sunIcon} alt="Sun" className={styles.headerIcon} />
           <div>
             <h1>{companyName}</h1>
-            <p>Demo qualification widget</p>
           </div>
         </div>
       </div>
@@ -155,7 +155,7 @@ export default function SolarBuddyWidget({ industry, companyName }) {
       )}
 
       <div className={styles.statusBar}>
-        <span>{submissionState === 'submitting' ? 'Sending lead to backend...' : `Flow: ${industry}`}</span>
+        <span>{submissionState === 'submitting' ? 'Sending lead to backend...' : ''}</span>
         {submissionState === 'success' && <strong>Stored</strong>}
         {submissionState === 'error' && <strong>Retry Needed</strong>}
       </div>

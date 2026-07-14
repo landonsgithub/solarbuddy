@@ -4,9 +4,8 @@ import styles from './LeadDashboard.module.css';
 
 const FILTERS = [
   { value: 'all', label: 'All Leads' },
-  { value: 'hot', label: 'Hot Leads' },
-  { value: 'target', label: 'Target Area' },
-  { value: 'out_of_area', label: 'Outside Area' }
+  { value: 'hot', label: 'Premium Leads' },
+  { value: 'target', label: 'Target Area' }
 ];
 
 const BUCKET_LABELS = {
@@ -106,16 +105,12 @@ export default function LeadDashboard() {
           <strong>{stats.total}</strong>
         </article>
         <article className={styles.statTile}>
-          <span>Hot</span>
+          <span>Premium</span>
           <strong>{stats.hot}</strong>
         </article>
         <article className={styles.statTile}>
           <span>Target</span>
           <strong>{stats.target}</strong>
-        </article>
-        <article className={styles.statTile}>
-          <span>Out of Area</span>
-          <strong>{stats.outOfArea}</strong>
         </article>
       </div>
 

@@ -20,24 +20,25 @@ const STEPS = {
     id: 'property_type',
     text: 'Awesome! Is this for a commercial business or a private residence?',
     options: ['Private Residence', 'Commercial Business'],
-    next: (answer) => (answer === 'Private Residence' ? 'monthly_bill' : 'address')
+    next: (answer) => (answer === 'Private Residence' ? 'monthly_bill' : 'zip_code')
   },
   monthly_bill: {
     id: 'monthly_bill',
     text: 'How much is your average monthly electric bill, roughly?',
     options: ['Less than $250', '$250 - $500', '$500 - $1000', '$1000+'],
-    next: () => 'address'
-  },
-  address: {
-    id: 'address',
-    text: 'What is the full property address?',
-    type: 'text',
     next: () => 'zip_code'
   },
   zip_code: {
     id: 'zip_code',
     text: 'What is the property ZIP code?',
     type: 'text',
+    next: () => 'address'
+  },
+  address: {
+    id: 'address',
+    text: 'What is the full property address? You can also skip this step.',
+    type: 'text',
+    options: ['Skip'],
     next: () => 'service_type'
   },
   service_type: {
@@ -71,6 +72,12 @@ const STEPS = {
     id: 'email_address',
     text: 'What is the best email address to reach you?',
     type: 'text',
+    next: () => 'phone_number'
+  },
+  phone_number: {
+    id: 'phone_number',
+    text: 'What is the best cell phone number to reach you?',
+    type: 'text',
     next: () => 'consent_storage'
   },
   consent_storage: {
@@ -92,6 +99,7 @@ const INITIAL_DATA = {
   seriousness: 5,
   energyProvider: '',
   email: '',
+  phone: '',
   consentGiven: false,
   consentText: ''
 };
@@ -110,13 +118,16 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
     if (currentStepId === 'full_name') updatedFormData.fullName = answerText;
     if (currentStepId === 'property_type') updatedFormData.propertyType = answerText;
     if (currentStepId === 'monthly_bill') updatedFormData.monthlyBill = answerText;
-    if (currentStepId === 'address') updatedFormData.addressRaw = answerText;
     if (currentStepId === 'zip_code') updatedFormData.zipCode = answerText;
+    if (currentStepId === 'address') {
+      updatedFormData.addressRaw = answerText === 'Skip' ? 'N/A' : answerText;
+    }
     if (currentStepId === 'service_type') updatedFormData.serviceType = answerText;
     if (currentStepId === 'house_specs') updatedFormData.houseSpecs = answerText;
     if (currentStepId === 'seriousness_scale') updatedFormData.seriousness = parseInt(answerText, 10);
     if (currentStepId === 'energy_provider') updatedFormData.energyProvider = answerText;
     if (currentStepId === 'email_address') updatedFormData.email = answerText;
+    if (currentStepId === 'phone_number') updatedFormData.phone = answerText;
     if (currentStepId === 'consent_storage') {
       updatedFormData.consentGiven = answerText === 'I Consent';
       updatedFormData.consentText = answerText === 'I Consent' ? CONSENT_COPY : '';
@@ -134,7 +145,7 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
       nextAiText = 'Understood. We cannot store your information without consent, so the demo stops here.';
       onTreeComplete({ ...updatedFormData, status: 'no_consent' });
     } else if (nextStepId === 'qualified_complete') {
-      nextAiText = 'Thanks. I have everything I need and I am sending your lead to the backend now.';
+      nextAiText = 'Thank you for contacting Solar Buddy. We have received your information and our team will reach out to you soon.';
       onTreeComplete({ ...updatedFormData, status: 'completed' });
     } else {
       nextAiText = STEPS[nextStepId].text;
