@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+solar-backend/.env
+solar-backend/dev.db
+solar-backend/dev.db-journal
+solar-backend/prisma/dev.db
+solar-backend/prisma/dev.db-journal

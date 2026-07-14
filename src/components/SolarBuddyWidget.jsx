@@ -1,43 +1,90 @@
-import { useState, useEffect, useRef } from 'react';
-import { establishGeminiConnection } from '../services/gemini.js';
-import SolarDecisionTree from './SolarDecisionTree';
+import { useEffect, useRef, useState } from 'react';
+import SolarDecisionTree from './SolarDecisionTree.jsx';
 import RangeSlider from './RangeSlider.jsx';
 import styles from './SolarBuddyWidget.module.css';
 import sunIcon from '../assets/sun-icon.svg';
+import { createLead } from '../services/api.js';
+import { sbStore } from '../services/sbStore.js';
 
+function buildLeadPayload(finalData) {
+  return {
+    fullName: finalData.fullName,
+    email: finalData.email,
+    propertyType: finalData.propertyType || undefined,
+    monthlyBill: finalData.monthlyBill || undefined,
+    addressRaw: finalData.addressRaw,
+    city: undefined,
+    zipCode: finalData.zipCode,
+    serviceType: finalData.serviceType || undefined,
+    houseSpecs: finalData.houseSpecs || undefined,
+    seriousness: finalData.seriousness,
+    energyProvider: finalData.energyProvider || undefined,
+    consentGiven: finalData.consentGiven,
+    consentText: finalData.consentText,
+    notes: undefined
+  };
+}
 
-export default function SalesBuddyWidget({ industry, companyName }) {
+export default function SolarBuddyWidget({ industry, companyName }) {
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [leadData, setLeadData] = useState(null);
   const [treeActive, setTreeActive] = useState(true);
-
+  const [submissionState, setSubmissionState] = useState('idle');
   const messagesEndRef = useRef(null);
 
- // Initialize the Decision Tree Engine hook-style
   const tree = SolarDecisionTree({
     onStepComplete: (userResponse, nextAiText) => {
-      // Push the user's answer AND the next question onto the screen
       setMessages((prev) => [
         ...prev,
         { role: 'user', text: userResponse },
         { role: 'ai', text: nextAiText }
       ]);
     },
-    onTreeComplete: (finalData) => {
-      setLeadData(finalData);
-      setTreeActive(false); // Turn off decision tree, hand keys to Gemini
-      
-      // POST TO BACKEND TRIGGER
-      console.log("🚀 Sending this data packet to the backend database:", finalData);
-      if (!finalData.isWesternColorado) {
-        console.log("⚠️ Flagged: Address falls into separate out-of-area bucket.");
+    onTreeComplete: async (finalData) => {
+      setTreeActive(false);
+
+      if (finalData.status !== 'completed') {
+        setSubmissionState('idle');
+        return;
+      }
+
+      setLoading(true);
+      setSubmissionState('submitting');
+
+      try {
+        const response = await createLead(buildLeadPayload(finalData));
+        const storedLead = response.data;
+
+        setSubmissionState('success');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            text: storedLead.isHotLead
+              ? 'Hot lead captured. The backend stored it and triggered the email path.'
+              : 'Lead captured successfully. It is now visible in the dashboard.'
+          }
+        ]);
+
+        window.dispatchEvent(new CustomEvent('solarbuddy:lead-created'));
+        sbStore.resetData();
+      } catch (error) {
+        setSubmissionState('error');
+        setTreeActive(true);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'ai',
+            text: `I could not send the lead to the backend yet: ${error.message}`
+          }
+        ]);
+      } finally {
+        setLoading(false);
       }
     }
   });
 
-  // Inject the very first question when the component mounts
   useEffect(() => {
     if (messages.length === 0 && tree.currentStep) {
       setMessages([{ role: 'ai', text: tree.currentStep.text }]);
@@ -48,50 +95,35 @@ export default function SalesBuddyWidget({ industry, companyName }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (explicitText) => {
+  const handleSend = (explicitText) => {
     const text = explicitText || prompt;
-    if (!text.trim()) return;
+
+    if (!text.trim() || loading) {
+      return;
+    }
 
     if (treeActive) {
-      // Let the decision tree process the response text
       tree.handleAnswer(text);
       setPrompt('');
-    } else {
-      // Tree is done! Standard Gemini fallback route
-      setMessages((prev) => [...prev, { role: 'user', text: text }]);
-      setPrompt('');
-      setLoading(true);
-
-      const tempId = Date.now();
-      setMessages((prev) => [...prev, { id: tempId, role: 'ai', text: 'Thinking...' }]);
-
-      const aiText = await establishGeminiConnection(text);
-
-      setMessages((prev) => {
-        const filtered = prev.filter((msg) => msg.id !== tempId);
-        return [...filtered, { role: 'ai', text: aiText }];
-      });
-      setLoading(false);
     }
   };
-  
+
   const currentOptions = tree.currentStep?.options || [];
-  const isTextInputMode = tree.currentStep?.type === 'text' || !treeActive;
+  const isTextInputMode = tree.currentStep?.type === 'text';
   const isRangeMode = treeActive && tree.currentStep?.type === 'range';
 
   return (
-    <div className={styles.widgetContainer}>
-      {/* Header */}
+    <section className={styles.widgetContainer}>
       <div className={styles.header}>
         <div className={styles.headerTitle}>
           <img src={sunIcon} alt="Sun" className={styles.headerIcon} />
-          <h1>{companyName}</h1>
-        </div>
-        <div className={styles.headerActions}>
-          <span>Online (Active now)</span>
+          <div>
+            <h1>{companyName}</h1>
+            <p>Demo qualification widget</p>
+          </div>
         </div>
       </div>
-      {/* Message Feed */}
+
       <div className={styles.messageFeed}>
         {messages.map((msg, index) => (
           <div key={msg.id || index} className={`${styles.messageBubble} ${styles[msg.role]}`}>
@@ -101,42 +133,51 @@ export default function SalesBuddyWidget({ industry, companyName }) {
         ))}
         <div ref={messagesEndRef} />
       </div>
-      {/* Range Slider */}
-        {isRangeMode && (
-          <RangeSlider 
+
+      {isRangeMode && (
+        <RangeSlider
           label="Seriousness Rating"
           min={1}
           max={10}
-          initialValue={5}
-          onSubmit={(val) => handleSend(val)}
+          initialValue={7}
+          onSubmit={(value) => handleSend(value)}
         />
       )}
-      {/* Quick Replies / Option Buttons */}
-      {!loading && currentOptions.length > 0 && !isRangeMode &&(
+
+      {!loading && currentOptions.length > 0 && !isRangeMode && treeActive && (
         <div className={styles.quickReplyContainer}>
-          {currentOptions.map((option, index) => (
-            <button key={index} className={styles.quickReplyButton} onClick={() => handleSend(option)}>
+          {currentOptions.map((option) => (
+            <button key={option} className={styles.quickReplyButton} onClick={() => handleSend(option)}>
               {option}
             </button>
           ))}
         </div>
       )}
 
-      {/* Input Box Area */}
+      <div className={styles.statusBar}>
+        <span>{submissionState === 'submitting' ? 'Sending lead to backend...' : `Flow: ${industry}`}</span>
+        {submissionState === 'success' && <strong>Stored</strong>}
+        {submissionState === 'error' && <strong>Retry Needed</strong>}
+      </div>
+
       <div className={styles.inputArea}>
         <input
           type="text"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={treeActive && !isTextInputMode ? "Select an option above..." : `Ask about ${industry}...`}
-          disabled={treeActive && !isTextInputMode} // Lock input if they must click a button
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onChange={(event) => setPrompt(event.target.value)}
+          placeholder={treeActive && !isTextInputMode ? 'Select an option above...' : 'Type your answer here...'}
+          disabled={!treeActive || (treeActive && !isTextInputMode) || loading}
+          onKeyDown={(event) => event.key === 'Enter' && handleSend()}
           className={styles.textInput}
         />
-        <button onClick={() => handleSend()} disabled={loading || (treeActive && !isTextInputMode)} className={styles.sendButton}>
+        <button
+          onClick={() => handleSend()}
+          disabled={loading || !treeActive || (treeActive && !isTextInputMode)}
+          className={styles.sendButton}
+        >
           {loading ? '...' : 'Send'}
         </button>
       </div>
-    </div>
+    </section>
   );
 }
