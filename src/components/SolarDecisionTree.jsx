@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { sbStore } from '../services/sbStore.js';
 
 const CONSENT_COPY = 'I consent to the storage of my information for lead follow-up.';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const STEPS = {
   start: {
@@ -103,6 +104,14 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
   const currentStep = STEPS[currentStepId];
 
   const handleAnswer = (answerText) => {
+    if (currentStepId === 'email_address' && !EMAIL_PATTERN.test(answerText.trim())) {
+      onStepComplete(
+        answerText,
+        'Please enter a valid email address so we can get in touch with you.'
+      );
+      return;
+    }
+
     sbStore.updateItem(currentStepId, answerText);
 
     const updatedFormData = { ...formData };
