@@ -38,6 +38,16 @@ select {
   padding: 48px 0 64px;
 }
 
+.pageTitle {
+  margin: 0 0 24px;
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #2f8f57;
+  font-weight: 700;
+}
+
 .appIntro {
   max-width: 760px;
   margin-bottom: 28px;

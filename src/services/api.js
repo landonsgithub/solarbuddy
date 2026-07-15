@@ -32,13 +32,18 @@ export async function fetchLeadStats() {
   return parseJson(response);
 }
 
-export async function fetchCalendarAvailability(range) {
+export async function fetchCalendarBookingDays() {
+  const response = await fetch(`${API_BASE_URL}/calendar/days`);
+  return parseJson(response);
+}
+
+export async function fetchCalendarAvailability(date) {
   const response = await fetch(`${API_BASE_URL}/calendar/availability`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ range })
+    body: JSON.stringify({ date })
   });
 
   return parseJson(response);

@@ -45,13 +45,6 @@ const STEPS = {
     id: 'service_type',
     text: 'Perfect. What kind of project are we looking at?',
     options: ['Full Installation', 'Panel Replacement', 'Different Solar Need'],
-    next: (answer) => (answer === 'Full Installation' ? 'house_specs' : 'seriousness_scale')
-  },
-  house_specs: {
-    id: 'house_specs',
-    text: "For a full install, what is the approximate square footage of your home and the size of your roof? If you aren't sure, you can type N/A.",
-    type: 'text',
-    options: ['N/A'],
     next: () => 'seriousness_scale'
   },
   seriousness_scale: {
@@ -82,7 +75,7 @@ const STEPS = {
   },
   consent_storage: {
     id: 'consent_storage',
-    text: 'Do you consent to us storing your information for lead follow-up?',
+    text: 'Is it okay if we use these details to get in touch with you?',
     options: ['I Consent', 'No'],
     next: (answer) => (answer === 'I Consent' ? 'qualified_complete' : 'end_no_consent')
   }
@@ -95,7 +88,6 @@ const INITIAL_DATA = {
   addressRaw: '',
   zipCode: '',
   serviceType: '',
-  houseSpecs: '',
   seriousness: 5,
   energyProvider: '',
   email: '',
@@ -123,7 +115,6 @@ export default function SolarDecisionTree({ onStepComplete, onTreeComplete }) {
       updatedFormData.addressRaw = answerText === 'Skip' ? 'N/A' : answerText;
     }
     if (currentStepId === 'service_type') updatedFormData.serviceType = answerText;
-    if (currentStepId === 'house_specs') updatedFormData.houseSpecs = answerText;
     if (currentStepId === 'seriousness_scale') updatedFormData.seriousness = parseInt(answerText, 10);
     if (currentStepId === 'energy_provider') updatedFormData.energyProvider = answerText;
     if (currentStepId === 'email_address') updatedFormData.email = answerText;

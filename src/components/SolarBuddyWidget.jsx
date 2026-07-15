@@ -6,11 +6,11 @@ import sunIcon from '../assets/sun-icon.svg';
 import {
   bookCalendarAppointment,
   createLead,
-  fetchCalendarAvailability
+  fetchCalendarAvailability,
+  fetchCalendarBookingDays
 } from '../services/api.js';
 import { sbStore } from '../services/sbStore.js';
 
-const DAY_RANGE_OPTIONS = ['Tomorrow', 'This Week', 'Next Week'];
 const TIME_OF_DAY_OPTIONS = ['Morning', 'Afternoon', 'Choose another day'];
 const SCHEDULE_OPTIONS = ['Yes, let\'s schedule', 'No, not now'];
 const EMAIL_CONFIRM_OPTIONS = ['Yes', 'Use a different email'];
@@ -101,10 +101,13 @@ const INITIAL_BOOKING_STATE = {
   availableSlots: [],
   filteredSlots: [],
   currentIndex: 0,
-  currentRange: '',
+  currentDayLabel: '',
+  currentDayDate: '',
   currentTimeOfDay: '',
   selectedSlot: '',
-  slotMap: {}
+  slotMap: {},
+  dayOptions: [],
+  dayMap: {}
 };
 
 export default function SolarBuddyWidget({ companyName }) {
@@ -159,7 +162,7 @@ export default function SolarBuddyWidget({ companyName }) {
             ...prev,
             {
               role: 'ai',
-              text: 'You qualify for a 15-minute consultation. Would you like to see our available times now?'
+              text: 'Based on your info, you\'re ready to go! Want to see some times to connect with an expert?'
             }
           ]);
         } else {
@@ -216,11 +219,31 @@ export default function SolarBuddyWidget({ companyName }) {
           return;
         }
 
-        appendMessagePair(actionText, 'Great. Which day would work best for your consultation?');
-        setBookingState((prev) => ({
-          ...prev,
-          step: 'day_picker'
-        }));
+        setLoading(true);
+        setSubmissionState('scheduling');
+
+        try {
+          const bookingDaysResponse = await fetchCalendarBookingDays();
+          const days = bookingDaysResponse.data?.days ?? [];
+
+          if (days.length === 0) {
+            appendMessagePair(actionText, 'I could not find any weekday options right now. Please try again shortly.');
+            return;
+          }
+
+          appendMessagePair(actionText, 'Great, which day works best for a 15 minute call?');
+          setBookingState((prev) => ({
+            ...prev,
+            step: 'day_picker',
+            dayOptions: days.map((day) => day.label),
+            dayMap: Object.fromEntries(days.map((day) => [day.label, day.date]))
+          }));
+        } catch (error) {
+          appendMessagePair(actionText, `I could not load the available days yet: ${error.message}`);
+        } finally {
+          setLoading(false);
+          setSubmissionState('success');
+        }
         return;
       }
 
@@ -229,7 +252,13 @@ export default function SolarBuddyWidget({ companyName }) {
         setSubmissionState('scheduling');
 
         try {
-          const availabilityResponse = await fetchCalendarAvailability(actionText);
+          const selectedDate = bookingState.dayMap[actionText];
+          if (!selectedDate) {
+            appendMessagePair(actionText, 'I could not match that date option. Please choose again.');
+            return;
+          }
+
+          const availabilityResponse = await fetchCalendarAvailability(selectedDate);
           const slots = availabilityResponse.data?.slots ?? availabilityResponse.slots ?? [];
 
           if (slots.length === 0) {
@@ -238,7 +267,8 @@ export default function SolarBuddyWidget({ companyName }) {
               ...prev,
               availableSlots: [],
               filteredSlots: [],
-              currentRange: '',
+              currentDayLabel: '',
+              currentDayDate: '',
               currentIndex: 0,
               slotMap: {},
               step: 'day_picker'
@@ -251,7 +281,8 @@ export default function SolarBuddyWidget({ companyName }) {
             ...prev,
             availableSlots: slots,
             filteredSlots: [],
-            currentRange: actionText,
+            currentDayLabel: actionText,
+            currentDayDate: selectedDate,
             currentIndex: 0,
             currentTimeOfDay: '',
             slotMap: {},
@@ -272,7 +303,8 @@ export default function SolarBuddyWidget({ companyName }) {
           setBookingState((prev) => ({
             ...prev,
             step: 'day_picker',
-            currentRange: '',
+            currentDayLabel: '',
+            currentDayDate: '',
             currentTimeOfDay: '',
             filteredSlots: [],
             currentIndex: 0,
@@ -288,7 +320,8 @@ export default function SolarBuddyWidget({ companyName }) {
           setBookingState((prev) => ({
             ...prev,
             step: 'day_picker',
-            currentRange: '',
+            currentDayLabel: '',
+            currentDayDate: '',
             currentTimeOfDay: '',
             filteredSlots: [],
             currentIndex: 0,
@@ -298,7 +331,7 @@ export default function SolarBuddyWidget({ companyName }) {
         }
 
         const slotBatch = buildVisibleSlotOptions(filteredSlots, 0);
-        appendMessagePair(actionText, `Here are the first available slots for ${bookingState.currentRange.toLowerCase()} ${actionText.toLowerCase()}.`);
+        appendMessagePair(actionText, 'Alright, which time works best for you?');
         setBookingState((prev) => ({
           ...prev,
           currentTimeOfDay: actionText,
@@ -316,7 +349,8 @@ export default function SolarBuddyWidget({ companyName }) {
           setBookingState((prev) => ({
             ...prev,
             step: 'day_picker',
-            currentRange: '',
+            currentDayLabel: '',
+            currentDayDate: '',
             currentTimeOfDay: '',
             filteredSlots: [],
             currentIndex: 0,
@@ -449,7 +483,7 @@ export default function SolarBuddyWidget({ companyName }) {
       case 'offer_schedule':
         return SCHEDULE_OPTIONS;
       case 'day_picker':
-        return DAY_RANGE_OPTIONS;
+        return bookingState.dayOptions;
       case 'time_of_day':
         return TIME_OF_DAY_OPTIONS;
       case 'time_picker':

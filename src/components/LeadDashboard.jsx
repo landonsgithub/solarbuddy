@@ -87,7 +87,6 @@ export default function LeadDashboard() {
       <div className={styles.dashboardHeader}>
         <div>
           <p className={styles.kicker}>Lead Dashboard</p>
-          <h2>Stored demo leads</h2>
         </div>
 
         <select value={filter} onChange={(event) => setFilter(event.target.value)} className={styles.filterSelect}>
